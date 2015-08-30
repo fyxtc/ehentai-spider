@@ -122,7 +122,8 @@ def download_all_page_img(index_url):
 
 if __name__ == '__main__':
     if(len(sys.argv) < 2):
-        print("Usage: python ehentai-spider.py url1 url2 ...")
+        print("Usage: python ehentai_spider.py url1 url2 ...")
+        # print("Usage: ehentai_spider.exe url1 url2 ...")
     else:
         urls = sys.argv[1:]
         for url in urls:
