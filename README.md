@@ -17,7 +17,7 @@ You need some third libs:
 python ehentai-spider.py url1 url2 ...
 
 #For Example
-python ehentai-spider.py http://g.e-hentai.org/g/847453/8448eb8622/ http://g.e-hentai.org/g/847701/a466d45a4e/
+python ehentai_spider.py http://g.e-hentai.org/g/847453/8448eb8622/ http://g.e-hentai.org/g/847701/a466d45a4e/
 
 #Important
 script wiil set proxy at 127.0.0.1:1080, make sure you are running shadowsocks or other agent in port 1080 by socks5
