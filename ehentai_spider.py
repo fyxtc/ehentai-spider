@@ -4,28 +4,47 @@ import requests
 import re
 import os
 import sys
+import time
 import functools
 import threading
 from multiprocessing import Pool
 import locale
+import logging
 import socket
 import socks # you need to install pysocks
 
+import logging  
+
+def set_log():
+    #写日志，以不同的级别。
+    logging.basicConfig(filemode = "w", filename = 'log.txt',level = logging.INFO, format = '[%(asctime)s %(levelname)s] %(message)s', datefmt = '%Y%m%d %H:%M:%S')
+    #定义一个StreamHandler，将INFO级别或更高的日志信息打印到标准错误，并将其添加到当前的日志处理对象#
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(levelname)s: %(message)s')
+    console.setFormatter(formatter)
+    logging.getLogger('').addHandler(console)
+
+
 # Configuration
-SOCKS5_PROXY_HOST = '127.0.0.1'
-SOCKS5_PROXY_PORT = 1080
+# SOCKS5_PROXY_HOST = '127.0.0.1'
+# SOCKS5_PROXY_PORT = 1080
 
 # Set up a proxy
-socks.set_default_proxy(socks.SOCKS5, SOCKS5_PROXY_HOST, SOCKS5_PROXY_PORT)
-socket.socket = socks.socksocket
-# print("set proxy at 127.0.0.1:1080, make sure you are running shadowsocks or other agent in port 1080 by socks5")
-    
+# socks.set_default_proxy(socks.SOCKS5, SOCKS5_PROXY_HOST, SOCKS5_PROXY_PORT)
+# socket.socket = socks.socksocket
+# logging.info("set proxy at 127.0.0.1:1080, make sure you are running shadowsocks or other agent in port 1080 by socks5")
+
+def set_proxy():
+    socks.set_default_proxy(socks.SOCKS5, "127.0.0.1", 1080)
+    socket.socket = socks.socksocket    
+
 headers = {'user-agent': 'Chrome/37.0.2062.120'}
 
 def get_url_content(url):
-    res = requests.get(url,  headers = headers)
+    res = requests.get(url,  headers = headers, timeout=10)
     if res.status_code != requests.codes.ok:
-        # print("get url error %d %s" % res.staus_code, res_statsu)
+        # logging.info("get url error %d %s" % res.staus_code, res_statsu)
         raise_for_status()
     return res.text
 
@@ -43,25 +62,33 @@ def get_download_url(imgs):
         if re.match(p, img):
             return img
         elif img.find("509.gif") != -1:
-            print("Error: find 509 gif, you have downloaded too many images, reached the limit set by ehentai.org, please wait after some minutes")
+            logging.error("Error: find 509 gif, you have downloaded too many images, reached the limit set by ehentai.org, please wait after some minutes")
             return None
     return None
 
-def save_image(url, dir_name):
+def save_image(url, dir_name, src_url):
     dir_name = "download" + os.sep + dir_name
     if not os.path.exists(dir_name):
         os.makedirs(dir_name)
     
-    file_name = dir_name + os.sep + url[url.rfind("/")+1:]
+    name = ""
+    if url[url.rfind("/")+1:].find("image.php") != -1:
+        name = url[url.rfind("=")+1:]
+        logging.info("rename file name to " + name + " in " + url)
+    else:
+        name = url[url.rfind("/")+1:]
+    file_name = dir_name + os.sep + name
+    
     if os.path.exists(file_name) and os.path.getsize(file_name) > 1000: # >1KB
-        print("FILE EXISTED: %s" % file_name)
+        logging.info("FILE EXISTED: %s" % file_name)
     else:
         with open(file_name, "wb") as f:
             content = requests.get(url,  headers = headers).content
             f.write(content)
+            logging.info("image download finish: %s" % src_url)
 
 def download_detail_img(url):
-    # print("start download: %s" % url)
+    # logging.info("start download: %s" % url)
     content = get_url_content(url)
     imgs = get_all_img(content)
     download_url = get_download_url(imgs)
@@ -69,11 +96,9 @@ def download_detail_img(url):
         soup = BeautifulSoup(content, "html.parser")
         dir_name = soup.h1.text.replace("|", "")
         dir_name = re.sub(r'[|:*?\\/\n<>"]', "", dir_name) # windows filename format limit
-        save_image(download_url, dir_name)
-        print("image download finish: %s" % url)
+        save_image(download_url, dir_name, url)
     else:
-        print("NOT FOUND DOWNLOAD URL: %s" % url)
-        # print(imgs)
+        logging.error("NOT FOUND DOWNLOAD URL: %s" % url)
     
 def get_img_detail_url(page_url):
     soup = get_url_soup(page_url)
@@ -86,25 +111,26 @@ def get_img_detail_url(page_url):
     return details
 
 def download_page_img(page_url):
-    # print("page start download: %s", page_url)
+    # logging.info("page start download: %s", page_url)
     detail_urls = get_img_detail_url(page_url)
-    # print(detail_urls)
+    # logging.info(detail_urls)
     finish_count = 0
     # 多进程方式：python因为GIL的关系，多线程的并发其实并没有什么卵用，所以还是用多进程吧，默认pool大小就是CPU线程数，本机为2
-    pool = Pool()
-    pool.map(download_detail_img, detail_urls)
+    # pool = Pool()
+    # pool.map(download_detail_img, detail_urls)
 
     # 顺序下载方式
-    # for detail_url in detail_urls:
-    #     download_detail_img(detail_url)
-    #     finish_count = finish_count + 1
-    #     if(finish_count == 2):
-    #         break; # test
+    for detail_url in detail_urls:
+        download_detail_img(detail_url)
+        finish_count = finish_count + 1
+
+        # if(finish_count == 2):
+        #     break; # test
         # 多线程方式： 注意这里的args=(detail_url)会报错，因为这会被认为是括号而不是元组，就炸了....
         # thread = threading.Thread(target=download_detail_img, name="download thread", args=(detail_url, ))
         # thread.start()
 
-    # print("page finish download: %s -> count" % page_url, finish_count)
+    # logging.info("page finish download: %s -> count" % page_url, finish_count)
 
 def get_all_page_url(index_url):
     soup = get_url_soup(index_url)
@@ -114,18 +140,44 @@ def get_all_page_url(index_url):
     return pages
 
 def download_all_page_img(index_url):
-    print(">>>>>>>>>>>>>>>>>>>>>  START DOWNLOAD >>>>>>>>>>>>>>>>>>>>> %s" % index_url)
+    logging.info("START DOWNLOAD: " + index_url + " >>>>>>>>>")
     pages = get_all_page_url(index_url)
     for page in pages:
         download_page_img(page)
-    print(">>>>>>>>>>>>>>>>>>>>>  FINISH DOWNLOAD >>>>>>>>>>>>>>>>>>>>> %s" % index_url)
+    logging.info("FINISH DOWNLOAD: " + index_url + " >>>>>>>>>")
+
+def get_all_index_url(search_url):
+    content = get_url_soup(search_url)
+    index_urls = [index_url.get("href") for index_url in content.find_all("a") if index_url.get("href").find("http://g.e-hentai.org/g/") != -1]
+    return index_urls
 
 if __name__ == '__main__':
     if(len(sys.argv) < 2):
         print("Usage: python ehentai_spider.py url1 url2 ...")
-        # print("Usage: ehentai_spider.exe url1 url2 ...")
+        print("Usage: ehentai_spider.exe url1 url2 ...")
     else:
-        urls = sys.argv[1:]
-        for url in urls:
-            download_all_page_img(url)
-        # print(get_url_soup(urls[0]), )
+        set_log()
+        url_start_index = 1
+        if sys.argv[1] == "1080":
+            logging.info("set shadowsocks proxy in port 127.0.0.1:1080")
+            set_proxy()
+            url_start_index = 2
+
+        start_url = sys.argv[url_start_index]
+        if start_url.find("http://g.e-hentai.org/?") != -1: 
+            # search result url, next parm is index in this serarch page for continue download if interrupted in last time
+            index_urls = get_all_index_url(start_url)
+            start_index = int(sys.argv[url_start_index+1]) if len(sys.argv) > url_start_index+1 else 0
+            if(start_index != 0):
+                index_urls = index_urls[start_index - 1:] # 第五个是从索引为4开始切
+            logging.info(str(len(index_urls)) + "\n" + str(index_urls))
+            for index_url in index_urls:
+                download_all_page_img(index_url)
+
+            logging.info("\nFINISH ALL DOWNLOAD JOB !!!")
+        else:
+            urls = sys.argv[url_start_index:]
+            for url in urls:
+                download_all_page_img(url)
+
+
