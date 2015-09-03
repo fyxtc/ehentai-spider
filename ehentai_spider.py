@@ -116,6 +116,7 @@ def download_page_img(page_url):
     # logging.info(detail_urls)
     finish_count = 0
     # 多进程方式：python因为GIL的关系，多线程的并发其实并没有什么卵用，所以还是用多进程吧，默认pool大小就是CPU线程数，本机为2
+    # 注意py2exe好像并不支持
     # pool = Pool()
     # pool.map(download_detail_img, detail_urls)
 
@@ -156,6 +157,7 @@ if __name__ == '__main__':
         print("Usage: python ehentai_spider.py url1 url2 ...")
         print("Usage: ehentai_spider.exe url1 url2 ...")
     else:
+        # 注意所有参数必须以字符串形式传入，整数也一样，要写成"1,3,4"
         set_log()
         url_start_index = 1
         if sys.argv[1] == "1080":
@@ -165,17 +167,16 @@ if __name__ == '__main__':
 
         start_url = sys.argv[url_start_index]
         if start_url.find("http://g.e-hentai.org/?") != -1: 
-            # search result url, next parm is index in this serarch page for continue download if interrupted in last time
             index_urls = get_all_index_url(start_url)
-            # 解析页面参数的类型，有四种格式:
-            # 不写：默认为1，从第一个开始下载到整页结束
-            # 一个正数：如6，表示从第六个开始下载到整页结束，通常用于上次全页下载被突然中断，从上次中断的页面开始下载即可
-            # 正数列表：如6,7,8, 使用英文逗号分割的方式，表示从整页中下载这些页面
-            # 负数列表：如-6,-7,-8, 使用英文逗号分割的方式，注意只要第一个数负数即可，表示从整页中删除这些页面，其余正常下载
+            # 解析搜索结果页面参数的类型，有四种格式:
+            # 不写：默认为"1"，从第一个开始下载到整页结束
+            # 一个正数：如"6"，表示从第六个开始下载到整页结束，通常用于上次全页下载被突然中断，从上次中断的页面开始下载即可
+            # 正数列表：如"6,7,8", 使用英文逗号分割的方式，表示从整页中下载这些页面
+            # 负数列表：如"-6,-7,-8", 使用英文逗号分割的方式，注意只要第一个数负数即可，表示从整页中删除这些页面，其余正常下载
             # 注意一个负数的含义和负数列表一样，都是删除，但注意一个正数和正数列表是一样的，因为没必要，如果只有一个的话，直接传那个的地址就行了，用不到page的解析
             logging.debug("before index url count " + str(len(index_urls)) + "\n" + str(index_urls))
             search_parm = sys.argv[url_start_index+1] if len(sys.argv) > url_start_index+1 else 1
-            print("search_parm: " + str(search_parm))
+            logging.info("search_parm: " + str(search_parm))
             if search_parm != 1:
                 page_list = search_parm.split(",")
                 if len(page_list) == 1:
@@ -192,9 +193,9 @@ if __name__ == '__main__':
 
 
 
-            logging.info(" index url count " + str(len(index_urls)) + "\n" + str(index_urls))
-            # for index_url in index_urls:
-            #     download_all_page_img(index_url)
+            logging.info("index url count " + str(len(index_urls)) + "\n" + str(index_urls))
+            for index_url in index_urls:
+                download_all_page_img(index_url)
 
         else:
             urls = sys.argv[url_start_index:]
