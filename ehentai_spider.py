@@ -78,7 +78,7 @@ def save_image(url, dir_name, src_url):
     else:
         name = url[url.rfind("/")+1:]
     file_name = dir_name + os.sep + name
-    
+
     if os.path.exists(file_name) and os.path.getsize(file_name) > 1000: # >1KB
         logging.info("FILE EXISTED: %s" % file_name)
     else:
@@ -167,17 +167,39 @@ if __name__ == '__main__':
         if start_url.find("http://g.e-hentai.org/?") != -1: 
             # search result url, next parm is index in this serarch page for continue download if interrupted in last time
             index_urls = get_all_index_url(start_url)
-            start_index = int(sys.argv[url_start_index+1]) if len(sys.argv) > url_start_index+1 else 0
-            if(start_index != 0):
-                index_urls = index_urls[start_index - 1:] # 第五个是从索引为4开始切
-            logging.info(str(len(index_urls)) + "\n" + str(index_urls))
-            for index_url in index_urls:
-                download_all_page_img(index_url)
+            # 解析页面参数的类型，有四种格式:
+            # 不写：默认为1，从第一个开始下载到整页结束
+            # 一个正数：如6，表示从第六个开始下载到整页结束，通常用于上次全页下载被突然中断，从上次中断的页面开始下载即可
+            # 正数列表：如6,7,8, 使用英文逗号分割的方式，表示从整页中下载这些页面
+            # 负数列表：如-6,-7,-8, 使用英文逗号分割的方式，注意只要第一个数负数即可，表示从整页中删除这些页面，其余正常下载
+            # 注意一个负数的含义和负数列表一样，都是删除，但注意一个正数和正数列表是一样的，因为没必要，如果只有一个的话，直接传那个的地址就行了，用不到page的解析
+            logging.debug("before index url count " + str(len(index_urls)) + "\n" + str(index_urls))
+            search_parm = sys.argv[url_start_index+1] if len(sys.argv) > url_start_index+1 else 1
+            print("search_parm: " + str(search_parm))
+            if search_parm != 1:
+                page_list = search_parm.split(",")
+                if len(page_list) == 1:
+                    if(int(page_list[0]) > 0):
+                        # 第五个是从索引为4开始切
+                        index_urls = index_urls[int(search_parm) - 1:] 
+                    else:
+                        index_urls.remove(index_urls[int(search_parm)-1])
+                else:
+                    if int(page_list[0]) > 0:
+                        index_urls = [index_urls[i] for i in range(len(index_urls)) if str(i+1) in page_list ]
+                    else:
+                        index_urls = [index_urls[i] for i in range(len(index_urls)) if str(-(i+1)) not in page_list ]
 
-            logging.info("\nFINISH ALL DOWNLOAD JOB !!!")
+
+
+            logging.info(" index url count " + str(len(index_urls)) + "\n" + str(index_urls))
+            # for index_url in index_urls:
+            #     download_all_page_img(index_url)
+
         else:
             urls = sys.argv[url_start_index:]
             for url in urls:
                 download_all_page_img(url)
 
+        logging.info("FINISH ALL DOWNLOAD JOB !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
